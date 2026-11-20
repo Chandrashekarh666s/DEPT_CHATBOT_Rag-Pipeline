@@ -42,12 +42,17 @@ def load_base (pdf_path= "college_docs"):
   chunks=[]
   # FIX 1: match .pdf / .PDF both (Linux is case sensitive)
   for pdf in sorted(Path(pdf_path).glob("*")):
-    if pdf.suffix.lower() != ".pdf":
+    # FIX 6: also read .md and .txt files, not only pdf
+    if pdf.suffix.lower() not in [".pdf", ".md", ".txt"]:
       continue
     # FIX 2: one unreadable (scanned) pdf should not crash the whole app
     try:
-      full_text = load_pdf(pdf)
+      if pdf.suffix.lower() == ".pdf":
+        full_text = load_pdf(pdf)
+      else:
+        full_text = pdf.read_text(encoding="utf-8", errors="ignore")
     except Exception:
+      print("Skipped (no readable text):", pdf.name)
       continue
     chunks.extend(create_chunks(full_text))
   # FIX 3: clear error when nothing was loaded
