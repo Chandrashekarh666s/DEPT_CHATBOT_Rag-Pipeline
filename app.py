@@ -32,7 +32,7 @@ if "GROQ_API_KEY" not in st.secrets:
 mykey = st.secrets["GROQ_API_KEY"]
 
 # Resolve folder path safely relative to app.py
-DOCS_DIR = Path(__file__).parent / "college_docs"
+DOCS_DIR = Path(__file__).parent / "class_docs"
 
 @st.cache_resource(show_spinner="Loading college knowledge base...")
 def initiate_rag():
