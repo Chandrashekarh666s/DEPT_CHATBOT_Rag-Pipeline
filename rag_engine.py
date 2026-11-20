@@ -38,7 +38,7 @@ def build_vectors (chunks, model_name = "all-MiniLM-L6-v2"):
   return index,embed_model
 
 #call loadpdf,chunk,embedding
-def load_base (pdf_path= "class_docs"):
+def load_base (pdf_path= "college_docs"):
   chunks=[]
   # FIX 1: match .pdf / .PDF both (Linux is case sensitive)
   for pdf in sorted(Path(pdf_path).glob("*")):
