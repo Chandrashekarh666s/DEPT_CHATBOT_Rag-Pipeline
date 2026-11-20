@@ -1,6 +1,5 @@
 import streamlit as st
 from pathlib import Path
-from pypdf import PdfReader
 from rag_engine import load_base, ask_rag
 
 st.set_page_config(
@@ -10,19 +9,60 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ---------------- Sidebar ----------------
+st.sidebar.title("🎓 SIET ChatBot")
+st.sidebar.caption("Department of Computer Science Engineering")
+st.sidebar.divider()
+
+st.sidebar.subheader("📘 About Project")
+st.sidebar.write(
+    "This chatbot answers questions about the college. "
+    "It searches the college PDF files and replies only from the information in them."
+)
+
+st.sidebar.subheader("🛠️ Technologies Used")
+st.sidebar.markdown("""
+- 🐍 Python
+- 🎈 Streamlit
+- 📄 PyPDF
+- 🧠 Sentence Transformers
+- 🔎 FAISS Vector Search
+- ⚡ Groq LLM
+""")
+
+st.sidebar.subheader("🔄 RAG Pipeline")
+st.sidebar.graphviz_chart("""
+digraph {
+    rankdir=TB
+    node [shape=box, style="rounded,filled", fillcolor="#E8F0FE", color="#14766E", fontsize=10]
+    A [label="PDF Files"]
+    B [label="Chunking"]
+    C [label="Embeddings"]
+    D [label="FAISS Index"]
+    E [label="User Question"]
+    F [label="Top 3 Chunks"]
+    G [label="Groq LLM"]
+    H [label="Answer"]
+    A -> B -> C -> D
+    E -> D [label=" search", fontsize=9]
+    D -> F -> G -> H
+}
+""", use_container_width=True)
+
+# ---------------- Main page ----------------
 # Top header row: Title on the left, Clear Chat button on the right
 col1, col2 = st.columns([4, 1], vertical_alignment="center")
 
 with col1:
-    st.title("Shridevi Institute of Engineering and Technology - ChatBot")
+    st.title("🎓 Shridevi Institute of Engineering and Technology - ChatBot")
 
 with col2:
-    if st.button("Clear Chat", use_container_width=True):
+    if st.button("🗑️ Clear Chat", use_container_width=True):
         st.session_state.chat_hist = []
         st.rerun()
 
-st.caption("Department of Computer Science Engineering")
-st.caption("RAG Pipeline with Multiple Files • Created by Chandrashekar H")
+st.caption("💡 Ask anything about college information, Courses, Placements, FAQs, Rules and Regulations")
+st.caption("⚙️ RAG Pipeline with Multiple Files • Created by Chandrashekar H")
 st.divider()
 
 # Safe API key loading
@@ -33,7 +73,7 @@ if "GROQ_API_KEY" not in st.secrets:
 mykey = st.secrets["GROQ_API_KEY"]
 
 # Resolve folder path safely relative to app.py
-DOCS_DIR = Path(__file__).parent / "class_docs"
+DOCS_DIR = Path(__file__).parent / "college_docs"
 
 @st.cache_resource(show_spinner="Loading college knowledge base...")
 def initiate_rag():
@@ -48,89 +88,31 @@ except Exception as e:
 if "chat_hist" not in st.session_state:
     st.session_state.chat_hist = []
 
-if "page" not in st.session_state:
-    st.session_state.page = "Chat"
+# Chat window icons
+user_icon = "🧑‍🎓"
+bot_icon = "🤖"
 
-if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+for qa in st.session_state.chat_hist:
+    if qa["role"] == "user":
+        icon = user_icon
+    else:
+        icon = bot_icon
+    with st.chat_message(qa["role"], avatar=icon):
+        st.write(qa["content"])
 
-# Sidebar buttons
-st.sidebar.title("🎓 SIET Bot")
-if st.sidebar.button("💬 Chat", use_container_width=True):
-    st.session_state.page = "Chat"
-if st.sidebar.button("📅 Planner", use_container_width=True):
-    st.session_state.page = "Planner"
-if st.sidebar.button("ℹ️ About", use_container_width=True):
-    st.session_state.page = "About"
+question = st.chat_input("Ask anything about college....")
 
-# ---------------- Chat page ----------------
-if st.session_state.page == "Chat":
+if question:
+    st.session_state.chat_hist.append({"role": "user", "content": question})
+    with st.chat_message("user", avatar=user_icon):
+        st.write(question)
 
-    for qa in st.session_state.chat_hist:
-        with st.chat_message(qa["role"]):
-            st.write(qa["content"])
+    with st.chat_message("assistant", avatar=bot_icon):
+        with st.spinner("Searching documents for answer...."):
+            try:
+                answer = ask_rag(question, embed_model, chunks, index, api_key=mykey)
+            except Exception as e:
+                answer = f"Sorry, an error occurred while generating the answer: {e}"
+            st.write(answer)
 
-    question = st.chat_input("Ask anything about college....")
-
-    # Sample question buttons, shown only before the first message
-    if len(st.session_state.chat_hist) == 0:
-        if st.button("What are the placement details?"):
-            question = "What are the placement details?"
-        if st.button("Which courses does the CSE department offer?"):
-            question = "Which courses does the CSE department offer?"
-        if st.button("What are the rules and regulations?"):
-            question = "What are the rules and regulations?"
-
-    if question:
-        st.session_state.chat_hist.append({"role": "user", "content": question})
-        with st.chat_message("user"):
-            st.write(question)
-
-        with st.chat_message("assistant"):
-            with st.spinner("Searching documents for answer...."):
-                try:
-                    answer = ask_rag(question, embed_model, chunks, index, api_key=mykey)
-                except Exception as e:
-                    answer = f"Sorry, an error occurred while generating the answer: {e}"
-                st.write(answer)
-
-        st.session_state.chat_hist.append({"role": "assistant", "content": answer})
-
-# ---------------- Planner page ----------------
-elif st.session_state.page == "Planner":
-    st.subheader("📅 Planner")
-
-    # Pick lines from the class_docs files that contain the selected topic
-    topic = st.selectbox("Topic", ["exam", "placement", "fee", "event", "deadline"])
-
-    count = 0
-    for file in sorted(DOCS_DIR.glob("*")):
-        if file.suffix.lower() != ".pdf":
-            continue
-        reader = PdfReader(str(file))
-        for page in reader.pages:
-            for line in (page.extract_text() or "").splitlines():
-                if topic in line.lower():
-                    st.write("•", line)
-                    count = count + 1
-
-    if count == 0:
-        st.info("Nothing found for this topic.")
-
-    st.divider()
-    st.write("My Tasks")
-    new_task = st.text_input("Add a task")
-    if st.button("Add") and new_task:
-        st.session_state.tasks.append(new_task)
-        st.rerun()
-
-    for i, task in enumerate(st.session_state.tasks):
-        if st.button("✅ " + task, key=i):
-            st.session_state.tasks.pop(i)
-            st.rerun()
-
-# ---------------- About page ----------------
-else:
-    st.subheader("ℹ️ About")
-    st.write("Shridevi Institute of Engineering and Technology - CSE Department Chatbot")
-    st.write("Technologies: Python, Streamlit, FAISS, Sentence Embeddings, Groq LLM")
+    st.session_state.chat_hist.append({"role": "assistant", "content": answer})
