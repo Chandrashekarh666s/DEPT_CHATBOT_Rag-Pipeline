@@ -99,7 +99,7 @@ if st.session_state.page == "Chat":
 elif st.session_state.page == "Planner":
     st.subheader("📅 Planner")
 
-    # Pick lines from the college_docs files that contain the selected topic
+    # Pick lines from the class_docs files that contain the selected topic
     topic = st.selectbox("Topic", ["exam", "placement", "fee", "event", "deadline"])
 
     for file in DOCS_DIR.glob("*.txt"):
