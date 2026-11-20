@@ -1,5 +1,6 @@
 import streamlit as st
 from pathlib import Path
+from pypdf import PdfReader
 from rag_engine import load_base, ask_rag
 
 st.set_page_config(
@@ -102,10 +103,19 @@ elif st.session_state.page == "Planner":
     # Pick lines from the class_docs files that contain the selected topic
     topic = st.selectbox("Topic", ["exam", "placement", "fee", "event", "deadline"])
 
-    for file in DOCS_DIR.glob("*.txt"):
-        for line in file.read_text(encoding="utf-8").splitlines():
-            if topic in line.lower():
-                st.write("•", line)
+    count = 0
+    for file in sorted(DOCS_DIR.glob("*")):
+        if file.suffix.lower() != ".pdf":
+            continue
+        reader = PdfReader(str(file))
+        for page in reader.pages:
+            for line in (page.extract_text() or "").splitlines():
+                if topic in line.lower():
+                    st.write("•", line)
+                    count = count + 1
+
+    if count == 0:
+        st.info("Nothing found for this topic.")
 
     st.divider()
     st.write("My Tasks")
