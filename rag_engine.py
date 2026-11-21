@@ -1,3 +1,4 @@
+import re
 import faiss
 import numpy as np
 from groq import Groq
@@ -26,6 +27,11 @@ def create_chunks(full_text, chunksize = 500, overlap=100):
     start = end - overlap
   return chunks
 
+#Records: one profile / one calendar per record (FIX 7)
+def split_records(full_text):
+  parts = re.split(r"(?m)^(?=PROFILE: |# [^\n]*(?:Profile|Calendar))", full_text)
+  return [p.strip() for p in parts if p.strip()]
+
 #Embedding:
 def build_vectors (chunks, model_name = "all-MiniLM-L6-v2"):
   if not chunks:
@@ -40,6 +46,7 @@ def build_vectors (chunks, model_name = "all-MiniLM-L6-v2"):
 #call loadpdf,chunk,embedding
 def load_base (pdf_path= "college_docs"):
   chunks=[]
+  seen=set()
   # FIX 1: match .pdf / .PDF both (Linux is case sensitive)
   for pdf in sorted(Path(pdf_path).glob("*")):
     # FIX 6: also read .md and .txt files, not only pdf
@@ -54,7 +61,17 @@ def load_base (pdf_path= "college_docs"):
     except Exception:
       print("Skipped (no readable text):", pdf.name)
       continue
-    chunks.extend(create_chunks(full_text))
+    # FIX 7: split into one record per profile / calendar, then put the record
+    # title on every chunk, so a chunk always knows whose data it is.
+    # Repeated chunks (same text in the combined file and the single file) are added only once.
+    for record in split_records(full_text):
+      title = record.splitlines()[0].strip()[:80]
+      for c in create_chunks(record):
+        chunk = title + "\n" + c
+        if chunk not in seen:
+          seen.add(chunk)
+          chunks.append(chunk)
+    print("Loaded:", pdf.name, "| total chunks so far:", len(chunks))
   # FIX 3: clear error when nothing was loaded
   if not chunks:
     raise ValueError("No readable PDF files found in " + str(pdf_path))
