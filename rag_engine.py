@@ -86,7 +86,7 @@ def retrieve_content(question, embed_model, chunks, index, num_chunks=6):
 
     selected_indices = list(vec_indices[0])
 
-    # Ignore common English words so keyword search locks onto actual names/terms like "suthan"
+    
     stopwords = {"what", "when", "where", "which", "whom", "whose", "tell", "about", "give", "show", "details", "information", "profile", "faculty", "professor", "college", "does", "have", "from", "with", "that", "this", "there", "their"}
     q_words = [w.lower() for w in re.findall(r"\b[a-zA-Z]{4,}\b", question) if w.lower() not in stopwords]
 
