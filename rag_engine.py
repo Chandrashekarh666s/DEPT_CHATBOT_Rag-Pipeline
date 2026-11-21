@@ -6,7 +6,6 @@ from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
 
-# 1. Load PDFs
 def load_pdf(pdf_path):
     reader = PdfReader(str(pdf_path))
     mypages = [i.extract_text() or "" for i in reader.pages]
@@ -15,7 +14,6 @@ def load_pdf(pdf_path):
         raise ValueError("No readable Text Found")
     return full_text
 
-# 2. Chunking (increased size so each profile's core details stay together)
 def create_chunks(full_text, chunksize=900, overlap=150):
     chunks = []
     start = 0
@@ -27,7 +25,6 @@ def create_chunks(full_text, chunksize=900, overlap=150):
         start = end - overlap
     return chunks
 
-# 3. Records: splits cleanly even when PROFILE: is inside table pipes (| PROFILE: ...)
 def split_records(full_text):
     parts = re.split(
         r"(?m)(?=(?:^|\|\s*)(?:PROFILE:\s*|# [^\n]*(?:Profile|Calendar)|[^\n|]*Semester Calendar[^\n]*$|Faculty Profiles$))",
@@ -35,7 +32,6 @@ def split_records(full_text):
     )
     return [p.strip() for p in parts if p.strip()]
 
-# 4. Embedding
 def build_vectors(chunks, model_name="all-MiniLM-L6-v2"):
     if not chunks:
         raise ValueError("Cannot apply embedding without chunks")
@@ -47,7 +43,6 @@ def build_vectors(chunks, model_name="all-MiniLM-L6-v2"):
     index.add(embed_vectors)
     return index, embed_model
 
-# 5. Call load_pdf, chunk, embedding
 def load_base(pdf_path="college_docs"):
     chunks = []
     seen = set()
@@ -64,7 +59,6 @@ def load_base(pdf_path="college_docs"):
             continue
 
         for record in split_records(full_text):
-            # Clean leading table pipes '|' from title so "PROFILE: Suthan R" is clean
             raw_title = record.splitlines()[0].strip()
             title = re.sub(r"^[\|\s]+|[\|\s]+$", "", raw_title)[:80]
             for c in create_chunks(record):
@@ -79,7 +73,6 @@ def load_base(pdf_path="college_docs"):
     index, embed_model = build_vectors(chunks)
     return index, embed_model, chunks
 
-# 6. Retrieve (increased default num_chunks to 6 + keyword boost for exact names)
 def retrieve_content(question, embed_model, chunks, index, num_chunks=6):
     if not question.strip():
         raise ValueError("Question cannot be blank")
@@ -93,12 +86,14 @@ def retrieve_content(question, embed_model, chunks, index, num_chunks=6):
 
     selected_indices = list(vec_indices[0])
 
-    # Hybrid keyword boost: ensure chunks matching exact name/words in the question are included
-    q_words = [w.lower() for w in re.findall(r"\b[a-zA-Z]{4,}\b", question)]
+    # Ignore common English words so keyword search locks onto actual names/terms like "suthan"
+    stopwords = {"what", "when", "where", "which", "whom", "whose", "tell", "about", "give", "show", "details", "information", "profile", "faculty", "professor", "college", "does", "have", "from", "with", "that", "this", "there", "their"}
+    q_words = [w.lower() for w in re.findall(r"\b[a-zA-Z]{4,}\b", question) if w.lower() not in stopwords]
+
     for idx, ch in enumerate(chunks):
         if idx not in selected_indices and any(w in ch.lower() for w in q_words):
             selected_indices.append(idx)
-            if len(selected_indices) >= num_chunks + 3:
+            if len(selected_indices) >= num_chunks + 4:
                 break
 
     background = ""
@@ -107,7 +102,6 @@ def retrieve_content(question, embed_model, chunks, index, num_chunks=6):
             background += chunks[i] + "\n\n"
     return background
 
-# 7. Ask
 def ask_rag(question, embed_model, chunks, index, api_key, num_chunks=6, model_name="openai/gpt-oss-120b"):
     if not api_key:
         raise ValueError("API Key Missing")
