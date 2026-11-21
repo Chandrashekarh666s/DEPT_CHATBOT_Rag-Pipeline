@@ -29,7 +29,7 @@ def create_chunks(full_text, chunksize = 500, overlap=100):
 
 #Records: one profile / one calendar per record (FIX 7)
 def split_records(full_text):
-  parts = re.split(r"(?m)^(?=PROFILE: |# [^\n]*(?:Profile|Calendar))", full_text)
+  parts = re.split(r"(?m)^(?=PROFILE: |# [^\n]*(?:Profile|Calendar)|[^\n|]*Semester Calendar[^\n|]*$|Faculty Profiles$)", full_text)
   return [p.strip() for p in parts if p.strip()]
 
 #Embedding:
