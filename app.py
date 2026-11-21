@@ -1,44 +1,64 @@
 import streamlit as st
-from pathlib import Path
 from rag_engine import load_base, ask_rag
 
-st.set_page_config(
-    page_title="SIET Chatbot",
-    page_icon="🎓",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="SIET_Chatbot", page_icon="🎓", layout="centered")
 
-col1, col2 = st.columns([4, 1], vertical_alignment="center")
+with st.sidebar:
+    st.title("🎓 SIET AI ChatBot")
+    st.caption("Shridevi Institute of Engineering and Technology, Tumkur")
+    st.divider()
 
-with col1:
-    st.title("Shridevi Institute of Engineering and Technology - ChatBot")
+    st.subheader("📄 About Project")
+    st.write("A college assistant built using RAG to answer questions about courses, faculty profiles, calendars, placements, and college rules from PDF files.")
 
-with col2:
-    if st.button("Clear Chat", use_container_width=True):
+    st.subheader("⚙️ Technologies Used")
+    st.markdown("""
+    - **Frontend:** Streamlit
+    - **PDF Reader:** PyPDF
+    - **Embedding:** Sentence Transformers
+    - **Vector DB:** FAISS
+    - **LLM:** Groq API
+    """)
+
+    st.subheader("🔄 RAG Pipeline Flow")
+    st.code("""
+Loading (PDF/txt) [PDF Reader]
+        ↓
+Chunking
+        ↓
+Embedding [Sentence Transformer]
+        ↓
+Vector DB [FAISS]
+        ↓
+User Queries [Embedding]
+        ↓
+Retrieval [FAISS]
+        ↓
+LLM [Chunks are given]
+        ↓
+Final Answer
+    """, language="text")
+
+    st.divider()
+    btn = st.button("🗑️ Clear Chat", use_container_width=True)
+    if btn:
         st.session_state.chat_hist = []
+        st.success("Chat History Deleted")
         st.rerun()
 
-st.caption("Ask anything about college information, Courses, Placements, FAQs, Rules and Regulations")
-st.caption("RAG Pipeline with Multiple Files • Created by Chandrashekar H")
-st.divider()
+    st.caption("Created by Chandrashekar H")
 
-if "GROQ_API_KEY" not in st.secrets:
-    st.error("GROQ_API_KEY is missing in Streamlit Secrets.")
-    st.stop()
+st.title("Shridevi Institute of Engineering and Technology - ChatBot")
+st.caption("Ask anything about college information, Courses, Placements, FAQs, Rules and Regulations")
+st.caption("RAG pipeline with Multiple Files")
 
 mykey = st.secrets["GROQ_API_KEY"]
-DOCS_DIR = Path(__file__).parent / "college_docs"
 
-@st.cache_resource(show_spinner="Loading college knowledge base...")
+@st.cache_resource
 def initiate_rag():
-    return load_base(str(DOCS_DIR))
+    return load_base("college_docs")
 
-try:
-    index, embed_model, chunks = initiate_rag()
-except Exception as e:
-    st.error(f"Failed to load documents: {e}")
-    st.stop()
+index, embed_model, chunks = initiate_rag()
 
 if "chat_hist" not in st.session_state:
     st.session_state.chat_hist = []
@@ -50,16 +70,20 @@ for qa in st.session_state.chat_hist:
 question = st.chat_input("Ask anything about college....")
 
 if question:
-    st.session_state.chat_hist.append({"role": "user", "content": question})
+    st.session_state.chat_hist.append({
+        "role": "user",
+        "content": question
+    })
+
     with st.chat_message("user"):
         st.write(question)
 
     with st.chat_message("assistant"):
-        with st.spinner("Searching documents for answer...."):
-            try:
-                answer = ask_rag(question, embed_model, chunks, index, api_key=mykey)
-            except Exception as e:
-                answer = f"Sorry, an error occurred while generating the answer: {e}"
+        with st.spinner("Asking RAG for answer...."):
+            answer = ask_rag(question, embed_model, chunks, index, api_key=mykey)
             st.write(answer)
 
-    st.session_state.chat_hist.append({"role": "assistant", "content": answer})
+            st.session_state.chat_hist.append({
+                "role": "assistant",
+                "content": answer
+            })
